@@ -1,0 +1,52 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_NAME: sentinel-g
+  REGION: us-central1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Add required permissions for google-github-actions/auth
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: Build Docker image
+        run: docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} .
+
+      - name: Push Docker image
+        run: docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.REGION }}
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          env_vars: |
+            GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+            GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}

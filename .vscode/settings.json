@@ -1,0 +1,10 @@
+{
+    "python.defaultInterpreterPath": "c:\\workspace\\workspace-antigravity\\sentinel\\.venv\\Scripts\\python.exe",
+    "python.analysis.extraPaths": [
+        "c:\\workspace\\workspace-antigravity\\sentinel\\.venv\\Lib\\site-packages"
+    ],
+    "python.analysis.venvPath": "c:\\workspace\\workspace-antigravity\\sentinel",
+    "python.analysis.venv": ".venv",
+    "python.pythonPath": "c:\\workspace\\workspace-antigravity\\sentinel\\.venv\\Scripts\\python.exe",
+    "pyrefly.pythonInterpreter": "c:\\workspace\\workspace-antigravity\\sentinel\\.venv\\Scripts\\python.exe"
+}

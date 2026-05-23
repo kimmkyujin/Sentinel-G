@@ -9,6 +9,7 @@ import json
 import logging
 import asyncio
 import time
+import subprocess
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
 
@@ -132,6 +133,11 @@ async def lifespan(app: FastAPI):
     for port, data in list(ACTIVE_PORTS.items()):
         if data.get("expire_task"): data["expire_task"].cancel()
         if data.get("notify_task"): data["notify_task"].cancel()
+        if data.get("process"):
+            try:
+                data["process"].terminate()
+            except Exception:
+                pass
     ACTIVE_PORTS.clear()
 
 app = FastAPI(title="Sentinel-G Cognitive Security Agent (Gemini)", version="3.0.0", lifespan=lifespan)
@@ -237,7 +243,12 @@ async def expire_timer(port: int, rule_name: str, expire_time_ms: int, session_i
     except asyncio.CancelledError:
         pass
     finally:
-        ACTIVE_PORTS.pop(port, None)
+        data = ACTIVE_PORTS.pop(port, None)
+        if data and data.get("process"):
+            try:
+                data["process"].terminate()
+            except Exception:
+                pass
 
 def setup_port_timers(port: int, rule_name: str, duration_minutes: int, notify_minutes: int, session_id: str):
     if port in ACTIVE_PORTS:
@@ -293,6 +304,12 @@ def open_gcp_firewall(ip: str, port: int, duration: int, purpose: str, notify_mi
         rule_name = rule_data.get("ruleName")
         setup_port_timers(port, rule_name, duration, notify_minutes, session_id)
         
+        # 서브 프로세스(동적 포트 바인딩) 실행 (Ubuntu 리눅스 환경 대응)
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent.py")
+        proc = subprocess.Popen(["python3", script_path, "--host", "0.0.0.0", "--port", str(port)])
+        if port in ACTIVE_PORTS:
+            ACTIVE_PORTS[port]["process"] = proc
+        
         # Firestore 기록 (열릴 때)
         opened_at = int(time.time() * 1000)
         expire_at = ACTIVE_PORTS[port]["expire_time"]
@@ -321,6 +338,11 @@ def close_gcp_firewall(port: int) -> str:
             data = ACTIVE_PORTS.pop(port)
             if data.get("expire_task"): data["expire_task"].cancel()
             if data.get("notify_task"): data["notify_task"].cancel()
+            if data.get("process"):
+                try:
+                    data["process"].terminate()
+                except Exception:
+                    pass
         
         sentinel_g.delete_firewall_rule(rule_name)
         
